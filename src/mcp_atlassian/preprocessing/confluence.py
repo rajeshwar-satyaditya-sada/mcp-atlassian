@@ -5,12 +5,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from md2conf.converter import (
-    ConfluenceConverterOptions,
-    ConfluenceStorageFormatConverter,
-    elements_to_string,
-    markdown_to_html,
-)
+from md2conf.converter import (ConfluenceConverterOptions,
+                               ConfluenceStorageFormatConverter,
+                               elements_to_string, markdown_to_html)
 
 # Handle md2conf API changes: elements_from_string may be renamed to elements_from_strings
 try:
@@ -72,6 +69,7 @@ class ConfluencePreprocessor(BasePreprocessor):
                     path=Path(temp_dir) / "temp.md",
                     root_dir=Path(temp_dir),
                     page_metadata={},
+                    site_metadata={},
                 )
 
                 # Transform the HTML to Confluence storage format

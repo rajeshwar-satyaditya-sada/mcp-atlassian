@@ -1,5 +1,5 @@
 # .github/workflows/publish.yml
-name: Publish MCP-Atlassian to PyPI
+name: Publish MCP-Atlassian to GCP Artifact Registry (Python)
 
 on:
   release:
@@ -7,14 +7,17 @@ on:
   workflow_dispatch:   # Allows manual triggering
 
 jobs:
-  pypi-publish:
-    name: Upload release to PyPI
+  gcp-ar-publish:
+    name: Upload release to Google Artifact Registry
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/mcp-atlassian # Link to your PyPI package
     permissions:
-      id-token: write # Necessary for PyPI's trusted publishing
+      id-token: write   # Required for Workload Identity Federation
+      contents: read    # Default permission to read repository
+
+    env:
+      AR_LOCATION: ${{ secrets.AR_LOCATION }}            # e.g., us-central1
+      AR_PROJECT_ID: ${{ secrets.AR_PROJECT_ID }}        # GCP project ID
+      AR_REPOSITORY: ${{ secrets.AR_REPOSITORY }}        # Artifact Registry Python repo name
 
     steps:
       - name: Checkout repository
@@ -35,7 +38,34 @@ jobs:
       - name: Build package
         run: uv build
 
-      - name: Publish package to PyPI
-        run: uv publish --token ${{ secrets.PYPI_API_TOKEN }} dist/*
-        # If using trusted publishing (recommended), remove --token and configure it in PyPI:
-        # run: uv publish dist/*
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}     # projects/123456789/locations/global/workloadIdentityPools/pool/providers/provider
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}          # service-account@PROJECT_ID.iam.gserviceaccount.com
+          project_id: ${{ env.AR_PROJECT_ID }}
+
+      - name: Set up gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.AR_PROJECT_ID }}
+
+      - name: Install packaging tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade twine
+
+      - name: Upload package to Artifact Registry (Python)
+        env:
+          TWINE_USERNAME: oauth2accesstoken
+        run: |
+          set -euo pipefail
+          REPO_URL="https://${{ env.AR_LOCATION }}-python.pkg.dev/${{ env.AR_PROJECT_ID }}/${{ env.AR_REPOSITORY }}/"
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          python -m twine upload \
+            --repository-url "$REPO_URL" \
+            --username "$TWINE_USERNAME" \
+            --password "$ACCESS_TOKEN" \
+            dist/*
+

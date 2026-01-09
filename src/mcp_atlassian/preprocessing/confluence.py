@@ -127,11 +127,9 @@ class ConfluencePreprocessor(BasePreprocessor):
                     ]
                     if language:
                         macro_parts.append(
-
-                                '<ac:parameter ac:name="language">'
-                                f"{language}"
-                                "</ac:parameter>"
-
+                            '<ac:parameter ac:name="language">'
+                            f"{language}"
+                            "</ac:parameter>"
                         )
                     macro_parts.append("<ac:plain-text-body><![CDATA[")
                     macro_parts.append(code_text)

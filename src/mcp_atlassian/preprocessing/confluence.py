@@ -5,11 +5,15 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from md2conf.converter import (ConfluenceConverterOptions,
-                               ConfluenceStorageFormatConverter,
-                               elements_to_string, markdown_to_html)
+from md2conf.converter import (
+    ConfluenceConverterOptions,
+    ConfluenceStorageFormatConverter,
+    elements_to_string,
+    markdown_to_html,
+)
 
-# Handle md2conf API changes: elements_from_string may be renamed to elements_from_strings
+# Handle md2conf API changes:
+# elements_from_string may be renamed to elements_from_strings
 try:
     from md2conf.converter import elements_from_string
 except ImportError:
@@ -40,7 +44,8 @@ class ConfluencePreprocessor(BasePreprocessor):
 
         Args:
             markdown_content: Markdown text to convert
-            enable_heading_anchors: Whether to enable automatic heading anchor generation (default: False)
+            enable_heading_anchors: Whether to enable automatic heading
+                anchor generation (default: False)
 
         Returns:
             Confluence storage format (XHTML) string
@@ -98,7 +103,8 @@ class ConfluencePreprocessor(BasePreprocessor):
 
                 soup = BeautifulSoup(html_content, "html.parser")
 
-                # Convert <pre><code class="language-xxx">...</code></pre> to Confluence code macro
+                # Convert <pre><code class="language-xxx">...</code></pre>
+                # to Confluence code macro
                 for pre in soup.find_all("pre"):
                     code = pre.find("code")
                     if not code:
@@ -121,7 +127,11 @@ class ConfluencePreprocessor(BasePreprocessor):
                     ]
                     if language:
                         macro_parts.append(
-                            f'<ac:parameter ac:name="language">{language}</ac:parameter>'
+
+                                '<ac:parameter ac:name="language">'
+                                f"{language}"
+                                "</ac:parameter>"
+
                         )
                     macro_parts.append("<ac:plain-text-body><![CDATA[")
                     macro_parts.append(code_text)
@@ -134,11 +144,14 @@ class ConfluencePreprocessor(BasePreprocessor):
                     pre.replace_with(BeautifulSoup(macro_html, "html.parser"))
 
                 return str(soup)
-            except Exception as inner_e:
+            except Exception as inner_e:  # noqa: BLE001
                 # If BeautifulSoup is unavailable or transformation fails,
                 # return the plain HTML as a last resort.
                 logger.warning(
-                    "Fallback conversion to Confluence macros failed; returning HTML. Error: %s",
+                    (
+                        "Fallback conversion to Confluence macros failed; "
+                        "returning HTML. Error: %s"
+                    ),
                     inner_e,
                 )
                 return html_content

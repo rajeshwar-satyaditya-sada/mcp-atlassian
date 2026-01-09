@@ -12,7 +12,8 @@ from md2conf.converter import (
     markdown_to_html,
 )
 
-# Handle md2conf API changes: elements_from_string may be renamed to elements_from_strings
+# Handle md2conf API changes:
+# elements_from_string may be renamed to elements_from_strings
 try:
     from md2conf.converter import elements_from_string
 except ImportError:
@@ -43,7 +44,8 @@ class ConfluencePreprocessor(BasePreprocessor):
 
         Args:
             markdown_content: Markdown text to convert
-            enable_heading_anchors: Whether to enable automatic heading anchor generation (default: False)
+            enable_heading_anchors: Whether to enable automatic heading
+                anchor generation (default: False)
 
         Returns:
             Confluence storage format (XHTML) string
@@ -72,6 +74,7 @@ class ConfluencePreprocessor(BasePreprocessor):
                     path=Path(temp_dir) / "temp.md",
                     root_dir=Path(temp_dir),
                     page_metadata={},
+                    site_metadata={},
                 )
 
                 # Transform the HTML to Confluence storage format
@@ -89,13 +92,66 @@ class ConfluencePreprocessor(BasePreprocessor):
             logger.error(f"Error converting markdown to Confluence storage format: {e}")
             logger.exception(e)
 
-            # Fall back to a simpler method if the conversion fails
+            # Fallback strategy:
+            # 1) Convert Markdown to HTML
+            # 2) Transform fenced code blocks to Confluence code macro
+            # 3) Return HTML (without wrapping in an extra paragraph)
             html_content = markdown_to_html(markdown_content)
 
-            # Use a different approach that doesn't rely on the HTML macro
-            # This creates a proper Confluence storage format document
-            storage_format = f"""<p>{html_content}</p>"""
+            try:
+                from bs4 import BeautifulSoup
 
-            return str(storage_format)
+                soup = BeautifulSoup(html_content, "html.parser")
+
+                # Convert <pre><code class="language-xxx">...</code></pre>
+                # to Confluence code macro
+                for pre in soup.find_all("pre"):
+                    code = pre.find("code")
+                    if not code:
+                        continue
+
+                    # Detect language from class like "language-python"
+                    language = None
+                    if code.has_attr("class"):
+                        for cls in code.get("class", []):
+                            if cls.startswith("language-"):
+                                language = cls.split("-", 1)[1]
+                                break
+
+                    code_text = code.get_text()
+
+                    # Build Confluence code macro fragment
+                    # Note: Using plain-text-body with CDATA to preserve content
+                    macro_parts = [
+                        '<ac:structured-macro ac:name="code" ac:schema-version="1">',
+                    ]
+                    if language:
+                        macro_parts.append(
+                            '<ac:parameter ac:name="language">'
+                            f"{language}"
+                            "</ac:parameter>"
+                        )
+                    macro_parts.append("<ac:plain-text-body><![CDATA[")
+                    macro_parts.append(code_text)
+                    macro_parts.append("]]></ac:plain-text-body>")
+                    macro_parts.append("</ac:structured-macro>")
+
+                    macro_html = "".join(macro_parts)
+
+                    # Replace the <pre> block with the macro HTML
+                    pre.replace_with(BeautifulSoup(macro_html, "html.parser"))
+
+                return str(soup)
+            except Exception as inner_e:  # noqa: BLE001
+                # If BeautifulSoup is unavailable or transformation fails,
+                # return the plain HTML as a last resort.
+                logger.warning(
+                    (
+                        "Fallback conversion to Confluence macros failed; "
+                        "returning HTML. Error: %s"
+                    ),
+                    inner_e,
+                )
+                return html_content
 
     # Confluence-specific methods can be added here
